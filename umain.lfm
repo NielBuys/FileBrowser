@@ -1,0 +1,11 @@
+object frmMain: TfrmMain
+  Left = 200
+  Height = 720
+  Top = 120
+  Width = 1180
+  Caption = 'File Browser'
+  OnCloseQuery = FormCloseQuery
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  LCLVersion = '4.8.0.0'
+end
