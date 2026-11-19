@@ -1847,7 +1847,9 @@ begin
     ADoc.Editor.TopLine := topLine;
   end;
   ADoc.ViewDirty := True;
-  if ADoc.Mode = vmView then
+  // a reloaded tab in the background keeps its old page (and place) until it
+  // is shown; PagesChange redraws it then
+  if (ADoc.Mode = vmView) and ((ADoc = FPages.ActivePage) or not AKeepPosition) then
     RenderDoc(ADoc, AKeepPosition);
   UpdateCaption(ADoc);
 end;
@@ -1943,6 +1945,30 @@ begin
         Exit(False);
 end;
 
+type
+  // gives access to the frame's protected page panel
+  TIpFrameAccess = class(TIpHtmlFrame);
+
+{ IPro lays a new page out (and so sets its scroll height) only when it first
+  paints it, so a scroll position set straight after SetHtmlFromStr is clamped
+  to 0 and the view jumps to the top. Lay the page out first, then scroll. }
+procedure RestoreViewerScroll(AViewer: TIpHtmlPanel; APos: Integer);
+var
+  hp: TIpHtmlInternalPanel;
+  r: TRect;
+begin
+  if AViewer.MasterFrame <> nil then
+  begin
+    hp := TIpFrameAccess(AViewer.MasterFrame).HyperPanel;
+    if (hp <> nil) and AViewer.HandleAllocated then
+    begin
+      hp.HandleNeeded;
+      r := hp.PageRect;  // reading it lays the page out and sets the scroll range
+    end;
+  end;
+  AViewer.VScrollPos := APos;
+end;
+
 procedure TfrmMain.RenderDoc(ADoc: TDocSheet; AKeepScroll: Boolean);
 var
   html: string;
@@ -1966,7 +1992,7 @@ begin
   end;
   ADoc.ViewDirty := False;
   if AKeepScroll and (pos > 0) then
-    ADoc.Viewer.VScrollPos := pos;
+    RestoreViewerScroll(ADoc.Viewer, pos);
   if ADoc.PendingAnchor <> '' then
   begin
     ADoc.Viewer.MakeAnchorVisible(ADoc.PendingAnchor);

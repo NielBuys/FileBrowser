@@ -74,6 +74,9 @@ Settings (last folder, open tabs per folder, window layout) are stored per user 
   on the control canvas but draws on a bitmap with the startup DPI, so words overlap. Keep
   `UsePaintBuffer := False`. It also caches word widths, so after the window moves to another
   monitor the views are redrawn (`FormBoundsChanged` → `RefreshViews`; also Ctrl+R).
+- **IPro lays a new page out only when it paints it,** so setting `VScrollPos` right after
+  `SetHtmlFromStr` is clamped to 0 and the view jumps to the top. `RestoreViewerScroll`
+  forces the layout first (reads the page panel's `PageRect`), then scrolls.
 - **IPro ignores `bgcolor` on `<table>`;** put it on `<tr>`. `<p>` inside `<li>` runs
   together, so list items render "tight" with `<br>` between paragraphs.
 - **Icons must be bitmap frames.** LCL can't read PNG-compressed `.ico` frames (the app fails
