@@ -84,5 +84,13 @@ Settings (last folder, open tabs per folder, window layout) are stored per user 
   frames for that reason; don't switch it to Pillow's default ICO writer.
 - **SynEdit highlighters** carry range state across lines themselves: `ContinueNextLine` calls
   `SetLine` without `SetRange`.
+- **Removing SynEdit's top text view crashes** (Lazarus 4.8): the caret then unhooks from a
+  view that has already lost its manager. Freeing `TLazSynEditLineWrapPlugin` removes its view,
+  which is on top, so turning word wrap off puts a pass-through view on top first (`ApplyWrap`,
+  `WrapSpacer`). Removing a view that is not on top is safe.
+- **Never free a tab while one of its controls is handling a message.** Alt+C or Ctrl+W with the
+  focus in a tab's viewer runs Close Tab inside that viewer's key handling; freeing the tab there
+  crashed only sometimes. `CloseDoc` takes the tab out of the page control and frees it with
+  `Application.ReleaseComponent`.
 - **Window sizes** are saved in 96-DPI units (`ScaleFormTo96`) because they are applied in
   `FormCreate`, before LCL scales the form.
