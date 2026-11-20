@@ -25,7 +25,8 @@
     <VersionInfo>
       <UseVersionInfo Value="True"/>
       <MajorVersionNr Value="1"/>
-      <StringTable FileDescription="File Browser - folder browser with a Markdown viewer and editor" InternalName="FileBrowser" OriginalFilename="FileBrowser.exe" ProductName="File Browser" ProductVersion="1.0.0"/>
+      <MinorVersionNr Value="1"/>
+      <StringTable FileDescription="File Browser - folder browser with a Markdown viewer and editor" InternalName="FileBrowser" OriginalFilename="FileBrowser.exe" ProductName="File Browser" ProductVersion="1.1.0"/>
     </VersionInfo>
     <BuildModes>
       <Item Name="Default" Default="True"/>

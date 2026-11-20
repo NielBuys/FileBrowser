@@ -13,7 +13,9 @@ formatted; press **Ctrl+E** to edit it.
 - **Folder tree** like a code editor's, with find-by-name and a *Documents Only* filter
   (`.md`, `.txt`, `.pdf`).
 - **Formatted Markdown view:** headings, lists and task lists, tables, code blocks, quotes,
-  links (relative links to other Markdown files open in a new tab).
+  links (relative links to other Markdown files open in a new tab). *Keep Line Breaks*
+  (View menu, on by default) shows each line break in a paragraph as a new line, the way
+  GitHub comments do; turn it off for standard Markdown, where lines run together.
 - **Editor** with Markdown highlighting, word wrap and line numbers. Other text files (SQL,
   C#, JSON, XML, Python, Pascal, …) open with syntax highlighting.
 - **Tabs:** open as many files as you like.

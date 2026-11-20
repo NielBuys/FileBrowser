@@ -13,7 +13,8 @@ interface
 uses
   Classes, SysUtils;
 
-function MarkdownToHtml(const ASource: string; AFontSize: Integer = 10): string;
+function MarkdownToHtml(const ASource: string; AFontSize: Integer = 10;
+  AKeepLineBreaks: Boolean = False): string;
 function HtmlEscape(const S: string): string;
 function MakeSlug(const S: string): string;
 
@@ -27,6 +28,7 @@ type
   private
     FRefs: TStringList;   // reference link definitions: name=url
     FSlugs: TStringList;  // slugs already used, to keep anchors unique
+    FKeepLineBreaks: Boolean; // every line break in a paragraph is a <br>, as in GitHub comments
     function UniqueSlug(const AText: string): string;
     function RenderInline(const S: string): string;
     function RenderBlocks(ALines: TStrings; ATight: Boolean): string;
@@ -1107,6 +1109,8 @@ begin
             para := TrimRight(para) + HardBreak
           else if (para <> '') and (para[Length(para)] = '\') then
             para := Copy(para, 1, Length(para) - 1) + HardBreak
+          else if FKeepLineBreaks then
+            para := TrimRight(para) + HardBreak
           else
             para := TrimRight(para) + ' ';
         end;
@@ -1171,11 +1175,13 @@ begin
   end;
 end;
 
-function MarkdownToHtml(const ASource: string; AFontSize: Integer): string;
+function MarkdownToHtml(const ASource: string; AFontSize: Integer;
+  AKeepLineBreaks: Boolean): string;
 var
   r: TMdRenderer;
 begin
   r := TMdRenderer.Create;
+  r.FKeepLineBreaks := AKeepLineBreaks;
   try
     Result :=
       '<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' + LineEnding +

@@ -11,7 +11,7 @@ uses
   Windows, ShellApi, Classes, SysUtils, Forms, Controls, Graphics, Dialogs,
   ComCtrls, ExtCtrls, Menus, ActnList, StdCtrls, IniFiles, LCLType, LCLIntf,
   Clipbrd, LazFileUtils, LazUTF8, LConvEncoding,
-  SynEdit, SynEditHighlighter, SynEditWrappedView, SynEditTypes,
+  SynEdit, SynEditHighlighter, SynEditWrappedView, SynEditTypes, LazSynEditText,
   SynHighlighterSQL, SynHighlighterPas, SynHighlighterXML, SynHighlighterHTML,
   SynHighlighterJScript, SynHighlighterCpp, SynHighlighterPython,
   SynHighlighterIni, SynHighlighterBat, SynHighlighterDiff, SynHighlighterCss,
@@ -34,6 +34,7 @@ type
     Editor: TSynEdit;
     Viewer: TIpHtmlPanel;
     WrapPlugin: TLazSynEditLineWrapPlugin;
+    WrapSpacer: TSynEditStringsLinked; // see ApplyWrap
     Mode: TViewMode;
     CanView: Boolean;
     IsMarkdown: Boolean;
@@ -73,7 +74,7 @@ type
     // actions
     FActions: TActionList;
     actOpenFolder, actRefresh, actSave, actSaveAll, actCloseTab, actCloseAll,
-    actCloseOthers, actToggleMode, actDocsOnly, actWordWrap, actZoomIn,
+    actCloseOthers, actToggleMode, actDocsOnly, actWordWrap, actLineBreaks, actZoomIn,
     actZoomOut, actZoomReset, actNextTab, actPrevTab, actCopy, actFind, actFindNext,
     actExit, actNewFile, actRevealInTree, actShortcuts, actRefreshView: TAction;
     // highlighters
@@ -95,6 +96,7 @@ type
     FZoom: Integer;
     FDocsOnly: Boolean;
     FWordWrap: Boolean;
+    FLineBreaks: Boolean;
     FDocsCache: TStringList;
     FTreeSig: string;
     FTick: Integer;
@@ -190,6 +192,7 @@ type
     procedure DoToggleMode(Sender: TObject);
     procedure DoDocsOnly(Sender: TObject);
     procedure DoWordWrap(Sender: TObject);
+    procedure DoLineBreaks(Sender: TObject);
     procedure DoZoomIn(Sender: TObject);
     procedure DoZoomOut(Sender: TObject);
     procedure DoZoomReset(Sender: TObject);
@@ -364,6 +367,7 @@ begin
   FPreSearchExpanded := TStringList.Create;
   FZoom := 10;
   FWordWrap := True;
+  FLineBreaks := True;
   // %LOCALAPPDATA%\FileBrowser\FileBrowser.ini (fall back to the exe folder)
   if GetEnvironmentVariableUTF8('LOCALAPPDATA') <> '' then
     FIniName := AppendPathDelim(GetEnvironmentVariableUTF8('LOCALAPPDATA')) + 'FileBrowser\FileBrowser.ini'
@@ -476,6 +480,8 @@ begin
   actDocsOnly := NewAction('&Documents Only', ShortCut(VK_D, [ssCtrl, ssShift]), @DoDocsOnly,
     'Show only .md, .txt and .pdf files');
   actWordWrap := NewAction('&Word Wrap', ShortCut(VK_Z, [ssAlt]), @DoWordWrap);
+  actLineBreaks := NewAction('Keep &Line Breaks', 0, @DoLineBreaks,
+    'Show each line break in a paragraph as a new line, as GitHub comments do');
   actZoomIn := NewAction('Zoom &In', ShortCut(VK_OEM_PLUS, [ssCtrl]), @DoZoomIn);
   actZoomOut := NewAction('Zoom O&ut', ShortCut(VK_OEM_MINUS, [ssCtrl]), @DoZoomOut);
   actZoomReset := NewAction('&Reset Zoom', ShortCut(VK_0, [ssCtrl]), @DoZoomReset);
@@ -685,6 +691,7 @@ begin
   m := Top('&View');
   Item(m, actToggleMode);
   Item(m, actWordWrap).AutoCheck := False;
+  Item(m, actLineBreaks).AutoCheck := False;
   m.AddSeparator;
   Item(m, actDocsOnly);
   Item(m, actRefresh);
@@ -844,12 +851,14 @@ begin
     FZoom := ini.ReadInteger('View', 'FontSize', 10);
     FDocsOnly := ini.ReadBool('View', 'DocumentsOnly', False);
     FWordWrap := ini.ReadBool('View', 'WordWrap', True);
+    FLineBreaks := ini.ReadBool('View', 'KeepLineBreaks', True);
     FRoot := ini.ReadString('Main', 'Folder', '');
   finally
     ini.Free;
   end;
   actDocsOnly.Checked := FDocsOnly;
   actWordWrap.Checked := FWordWrap;
+  actLineBreaks.Checked := FLineBreaks;
   RebuildRecentMenu;
 end;
 
@@ -871,6 +880,7 @@ begin
     ini.WriteInteger('View', 'FontSize', FZoom);
     ini.WriteBool('View', 'DocumentsOnly', FDocsOnly);
     ini.WriteBool('View', 'WordWrap', FWordWrap);
+    ini.WriteBool('View', 'KeepLineBreaks', FLineBreaks);
     ini.WriteString('Main', 'Folder', FRoot);
   finally
     ini.Free;
@@ -1980,7 +1990,7 @@ begin
   if AKeepScroll then
     pos := ADoc.Viewer.VScrollPos;
   if ADoc.IsMarkdown then
-    html := MarkdownToHtml(ADoc.Editor.Lines.Text, FZoom)
+    html := MarkdownToHtml(ADoc.Editor.Lines.Text, FZoom, FLineBreaks)
   else
     html := ADoc.Editor.Lines.Text;
   try
@@ -2027,10 +2037,27 @@ end;
 
 procedure TfrmMain.ApplyWrap(ADoc: TDocSheet);
 begin
+  { SynEdit (Lazarus 4.8) crashes when the top text view is removed: the
+    caret then unhooks from that view after it has lost its manager. Freeing
+    the wrap plugin removes its view, which is on top. So before freeing it,
+    a pass-through view goes on top and the caret moves there first; when wrap
+    comes back on, the new wrap view is on top and the spacer can go. }
   if FWordWrap and (ADoc.WrapPlugin = nil) then
-    ADoc.WrapPlugin := TLazSynEditLineWrapPlugin.Create(ADoc.Editor)
+  begin
+    ADoc.WrapPlugin := TLazSynEditLineWrapPlugin.Create(ADoc.Editor);
+    if ADoc.WrapSpacer <> nil then
+    begin
+      ADoc.Editor.TextViewsManager.RemoveSynTextView(ADoc.WrapSpacer, True);
+      ADoc.WrapSpacer := nil;
+    end;
+  end
   else if (not FWordWrap) and (ADoc.WrapPlugin <> nil) then
   begin
+    if ADoc.WrapSpacer = nil then
+    begin
+      ADoc.WrapSpacer := TSynEditStringsLinked.Create;
+      ADoc.Editor.TextViewsManager.AddTextView(ADoc.WrapSpacer);
+    end;
     ADoc.WrapPlugin.Free;
     ADoc.WrapPlugin := nil;
   end;
@@ -2100,6 +2127,8 @@ begin
     actToggleMode.Caption := '&Edit';
   actDocsOnly.Checked := FDocsOnly;
   actWordWrap.Checked := FWordWrap;
+  // wrap is an editor setting; the formatted view always wraps its text
+  actWordWrap.Enabled := (d = nil) or (d.Mode <> vmView);
 
   if d = nil then
   begin
@@ -2476,6 +2505,13 @@ begin
   actWordWrap.Checked := FWordWrap;
   for i := 0 to FPages.PageCount - 1 do
     ApplyWrap(TDocSheet(FPages.Pages[i]));
+end;
+
+procedure TfrmMain.DoLineBreaks(Sender: TObject);
+begin
+  FLineBreaks := not FLineBreaks;
+  actLineBreaks.Checked := FLineBreaks;
+  RefreshViews;
 end;
 
 procedure TfrmMain.DoZoomIn(Sender: TObject);
