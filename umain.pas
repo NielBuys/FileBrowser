@@ -1939,7 +1939,12 @@ begin
       Exit;
     end;
   end;
-  ADoc.Free;
+  { Close Tab can fire while the tab's own viewer or editor is still handling
+    the key (Alt+C, Ctrl+W), and freeing it then leaves that handler running on
+    a freed control. So the tab leaves the page control now and is freed once
+    the current message is done. }
+  ADoc.PageControl := nil;
+  Application.ReleaseComponent(ADoc);
   Result := True;
   UpdateUI;
 end;
